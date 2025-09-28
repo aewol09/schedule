@@ -1,3 +1,4 @@
+// app.config.js
 export default {
   expo: {
     name: "일정 관리",
@@ -11,9 +12,8 @@ export default {
       resizeMode: "contain",
       backgroundColor: "#ffffff"
     },
-    assetBundlePatterns: [
-      "**/*"
-    ],
+    assetBundlePatterns: ["**/*"],
+
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.yourcompany.realscheduleapp",
@@ -22,10 +22,11 @@ export default {
         UIBackgroundModes: ["background-processing", "background-fetch"]
       }
     },
+
     android: {
       adaptiveIcon: {
         foregroundImage: "./assets/adaptive-icon.png",
-        backgroundColor: "#FFFFFF"
+        backgroundColor: "#ffffff"
       },
       package: "com.yourcompany.scheduleapp",
       versionCode: 1,
@@ -37,32 +38,34 @@ export default {
         "android.permission.USE_EXACT_ALARM",
         "android.permission.POST_NOTIFICATIONS",
         "com.android.alarm.permission.SET_ALARM"
-      ]
+      ],
+      edgeToEdgeEnabled: true
     },
+
     web: {
       favicon: "./assets/images/favicon.png"
     },
+
     plugins: [
       [
         "expo-notifications",
         {
-          // icon: "./assets/images/notification-icon.png",
           color: "#ffffff",
           mode: "production"
         }
-      ],
+      ]
     ],
+
     extra: {
       eas: {
         projectId: "dffdc4a3-72be-4b52-8291-efc75eaed0e8"
       }
     },
+
     notification: {
-      // icon: "./assets/images/notification-icon.png",
       color: "#ffffff",
       androidMode: "default",
       androidCollapsedTitle: "일정 관리 알림"
     }
   }
-  
 };
