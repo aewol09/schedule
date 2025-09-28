@@ -1,8 +1,9 @@
 import { registerRootComponent } from 'expo';
-
+import { AppRegistry } from 'react-native';
 import App from './App';
 
-// registerRootComponent calls AppRegistry.registerComponent('main', () => App);
-// It also ensures that whether you load the app in Expo Go or in a native build,
-// the environment is set up appropriately
+// 🚨 핵심: 'Global' 이름으로 명시적으로 등록
+AppRegistry.registerComponent('Global', () => App);
+
+// 📌 Expo 환경 등록 ('main'으로 등록됨)
 registerRootComponent(App);
