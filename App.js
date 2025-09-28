@@ -11,20 +11,12 @@ import {
   Dimensions,
   Platform,
   StatusBar,
+  Pressable,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
-import { PanGestureHandler, GestureHandlerRootView } from 'react-native-gesture-handler';
-import Animated, {
-  useAnimatedGestureHandler,
-  useAnimatedStyle,
-  useSharedValue,
-  runOnJS,
-  withSpring,
-  withTiming,
-} from 'react-native-reanimated';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Haptics from 'expo-haptics';
 
@@ -72,68 +64,114 @@ async function registerForPushNotificationsAsync() {
   return token;
 }
 
-// TaskItem 컴포넌트
+// TaskItem 컴포넌트 (gesture handler 없이 수정)
 const TaskItem = ({ task, onComplete, onDelete }) => {
-  const translateX = useSharedValue(0);
-  const opacity = useSharedValue(1);
+  const [showActions, setShowActions] = useState(false);
 
-  const gestureHandler = useAnimatedGestureHandler({
-    onStart: (_, context) => {
-      context.startX = translateX.value;
-    },
-    onActive: (event, context) => {
-      translateX.value = context.startX + event.translationX;
-    },
-    onEnd: (event) => {
-      const shouldComplete = Math.abs(event.translationX) > screenWidth * 0.3;
-      
-      if (shouldComplete) {
-        runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Medium);
-        translateX.value = withTiming(event.translationX > 0 ? screenWidth : -screenWidth);
-        opacity.value = withTiming(0, undefined, () => {
-          runOnJS(onComplete)(task.id);
-        });
-      } else {
-        translateX.value = withSpring(0);
-      }
-    },
-  });
+  const handleLongPress = () => {
+    setShowActions(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  };
 
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: translateX.value }],
-    opacity: opacity.value,
-  }));
+  const handleComplete = () => {
+    onComplete(task.id);
+    setShowActions(false);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
+
+  const handleDelete = () => {
+    Alert.alert(
+      '일정 삭제',
+      '이 일정을 삭제하시겠습니까?',
+      [
+        {
+          text: '취소',
+          style: 'cancel',
+          onPress: () => setShowActions(false)
+        },
+        {
+          text: '삭제',
+          style: 'destructive',
+          onPress: () => {
+            onDelete(task.id);
+            setShowActions(false);
+          }
+        }
+      ]
+    );
+  };
 
   return (
-    <PanGestureHandler onGestureEvent={gestureHandler}>
-      <Animated.View style={[styles.taskItem, animatedStyle]}>
-        <View style={[
+    <View style={styles.taskItem}>
+      <Pressable
+        onPress={handleComplete}
+        onLongPress={handleLongPress}
+        style={[
           styles.taskContent,
           { backgroundColor: task.isDaily ? '#E3F2FD' : '#E8F5E8' }
-        ]}>
-          <View style={[
-            styles.taskIndicator,
-            { backgroundColor: task.isDaily ? '#2196F3' : '#4CAF50' }
-          ]} />
-          <View style={styles.taskTextContainer}>
-            <Text style={styles.taskTitle}>{task.title}</Text>
-            <Text style={styles.taskType}>
-              {task.isDaily ? '매일 할 일' : '오늘 할 일'}
+        ]}
+      >
+        <View style={[
+          styles.taskIndicator,
+          { backgroundColor: task.isDaily ? '#2196F3' : '#4CAF50' }
+        ]} />
+        <View style={styles.taskTextContainer}>
+          <Text style={styles.taskTitle}>{task.title}</Text>
+          <Text style={styles.taskType}>
+            {task.isDaily ? '매일 할 일' : '오늘 할 일'}
+          </Text>
+          {task.notificationTime && (
+            <Text style={styles.taskTime}>
+              알림: {new Date(task.notificationTime).toLocaleTimeString('ko-KR', {
+                hour: '2-digit',
+                minute: '2-digit'
+              })}
             </Text>
-            {task.notificationTime && (
-              <Text style={styles.taskTime}>
-                알림: {new Date(task.notificationTime).toLocaleTimeString('ko-KR', {
-                  hour: '2-digit',
-                  minute: '2-digit'
-                })}
-              </Text>
-            )}
-          </View>
+          )}
+          <Text style={styles.taskHint}>
+            탭: 완료 | 꾹 누르기: 삭제
+          </Text>
         </View>
-      </Animated.View>
-    </PanGestureHandler>
+      </Pressable>
+
+      {/* 액션 모달 */}
+      <Modal
+        visible={showActions}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowActions(false)}
+      >
+        <Pressable 
+          style={styles.actionModalOverlay}
+          onPress={() => setShowActions(false)}
+        >
+          <View style={styles.actionModal}>
+            <Text style={styles.actionModalTitle}>{task.title}</Text>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.completeButton]}
+              onPress={handleComplete}
+            >
+              <Text style={styles.actionButtonText}>✅ 완료</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.deleteButton]}
+              onPress={handleDelete}
+            >
+              <Text style={styles.actionButtonText}>🗑️ 삭제</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.cancelButton]}
+              onPress={() => setShowActions(false)}
+            >
+              <Text style={styles.actionButtonText}>취소</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
+    </View>
   );
 };
+
 // 매일 할 일 추가 모달 (알림 설정 가능)
 const DailyTaskAddModal = ({ visible, onClose, onAdd }) => {
   const [title, setTitle] = useState('');
@@ -248,8 +286,8 @@ const DailyTaskAddModal = ({ visible, onClose, onAdd }) => {
           )}
 
           <View style={styles.modalButtons}>
-            <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
-              <Text style={styles.cancelButtonText}>취소</Text>
+            <TouchableOpacity style={styles.cancelButtonModal} onPress={onClose}>
+              <Text style={styles.cancelButtonTextModal}>취소</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.addButton} onPress={handleAdd}>
               <Text style={styles.addButtonText}>추가</Text>
@@ -408,8 +446,8 @@ const AddTaskModal = ({ visible, onClose, onAdd, onAddDaily }) => {
           )}
 
           <View style={styles.modalButtons}>
-            <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
-              <Text style={styles.cancelButtonText}>취소</Text>
+            <TouchableOpacity style={styles.cancelButtonModal} onPress={onClose}>
+              <Text style={styles.cancelButtonTextModal}>취소</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.addButton} onPress={handleAdd}>
               <Text style={styles.addButtonText}>추가</Text>
@@ -602,7 +640,7 @@ export default function App() {
     });
 
     return () => {
-          if (Notifications.removeNotificationSubscription) {
+      if (Notifications.removeNotificationSubscription) {
         Notifications.removeNotificationSubscription(notificationListener.current);
         Notifications.removeNotificationSubscription(responseListener.current);
       }
@@ -711,7 +749,7 @@ export default function App() {
   ];
 
   return (
-    <GestureHandlerRootView style={styles.container}>
+    <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
       
       <View style={styles.header}>
@@ -769,7 +807,7 @@ export default function App() {
         dailyTasks={dailyTasks}
         onSaveDailyTasks={saveDailyTasks}
       />
-    </GestureHandlerRootView>
+    </View>
   );
 }
 
@@ -851,17 +889,12 @@ const styles = StyleSheet.create({
   taskTime: {
     fontSize: 12,
     color: '#fd7e14',
+    marginBottom: 2,
   },
-  deleteButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: '#dc3545',
-    borderRadius: 6,
-  },
-  deleteButtonText: {
-    color: '#ffffff',
-    fontSize: 12,
-    fontWeight: '500',
+  taskHint: {
+    fontSize: 10,
+    color: '#adb5bd',
+    fontStyle: 'italic',
   },
   emptyContainer: {
     flex: 1,
@@ -899,6 +932,51 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontWeight: '300',
   },
+  
+  // 액션 모달 스타일
+  actionModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  actionModal: {
+    backgroundColor: '#ffffff',
+    borderRadius: 15,
+    padding: 20,
+    width: '80%',
+    maxWidth: 300,
+  },
+  actionModalTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#343a40',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  actionButton: {
+    paddingVertical: 15,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    marginBottom: 10,
+    alignItems: 'center',
+  },
+  completeButton: {
+    backgroundColor: '#28a745',
+  },
+  deleteButton: {
+    backgroundColor: '#dc3545',
+  },
+  cancelButton: {
+    backgroundColor: '#6c757d',
+  },
+  actionButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  
+  // 모달 스타일
   modalContainer: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -968,7 +1046,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginTop: 20,
   },
-  cancelButton: {
+  cancelButtonModal: {
     flex: 1,
     paddingVertical: 12,
     marginRight: 10,
@@ -976,9 +1054,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
   },
-  cancelButtonText: {
+  cancelButtonTextModal: {
     color: '#ffffff',
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: '600',
   },
   addButton: {
@@ -994,6 +1072,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  
+  // 설정 모달 스타일
   settingsContainer: {
     flex: 1,
     backgroundColor: '#f8f9fa',
@@ -1064,6 +1144,22 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontWeight: '300',
   },
+  addWithNotificationContainer: {
+    paddingHorizontal: 20,
+    paddingBottom: 10,
+  },
+  addWithNotificationButton: {
+    backgroundColor: '#007bff',
+    paddingVertical: 15,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  addWithNotificationText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
   dailyTaskItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1086,31 +1182,15 @@ const styles = StyleSheet.create({
     color: '#fd7e14',
     marginTop: 2,
   },
-  addWithNotificationContainer: {
-    paddingHorizontal: 20,
-    paddingBottom: 10,
-  },
-  addWithNotificationButton: {
-    backgroundColor: '#007bff',
-    paddingVertical: 15,
-    paddingHorizontal: 20,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  addWithNotificationText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
   removeDailyButton: {
     paddingHorizontal: 12,
     paddingVertical: 6,
     backgroundColor: '#dc3545',
     borderRadius: 6,
   },
-  removeDailyButtonText: {
-    color: '#ffffff',
-    fontSize: 12,
-    fontWeight: '500',
-  },
-});
+    removeDailyButtonText: {
+      color: '#ffffff',
+      fontSize: 12,
+      fontWeight: '500',
+    },
+  });
